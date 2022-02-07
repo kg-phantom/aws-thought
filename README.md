@@ -10,6 +10,8 @@
 
 An application where users can post thoughts, read other users' thoughts, and include images with their thoughts.
 
+[Click here](http://18.117.159.38/) to go to the deployed application!
+
 ![Deep Thoughts homepage](./assets/images/deep-thoughts-sc.PNG)
 
 ## Table of Contents
@@ -86,7 +88,7 @@ From Insomnia:
 
 To deploy a production version of the application:
 
-Follow these steps to deploy DynamoDB to AWS:
+### Deploy DynamoDB to AWS:
 
 1. Open `./server/db/CreateThoughtsTable.js` in your IDE and remove the `endpoint` property in the `AWS.config.update` statement:
 ```js
@@ -100,7 +102,7 @@ AWS.config.update({
     - If you want to seed the database, run `node ./server/db/LoadThoughts.js`.
     - To check that the table was created in AWS, log into your AWS account in the browser and select the DynamoDB service. Select the Tables option and then the `Thoughts` table. You should see data in the `Thoughts` table if you seeded it with `LoadThoughts.js`.
 
-After deploying DynamoDB to AWS, complete the following steps to create an EC2 instance in AWS:
+### Create an EC2 instance in AWS:
 
 1. Go to the AWS Management Console in the browser and select EC2 in Services.
 2. From the EC2 console, click the Launch Instance button.
@@ -135,6 +137,88 @@ After deploying DynamoDB to AWS, complete the following steps to create an EC2 i
 8. Select the Review and Launch button.
 9. Select `Create a new key pair` from the dropdown, name it something relevant like `deep-thoughts`, and then download the key pair.
 10. Save the downloaded `.pem` file in the `~/.ssh/` folder. If this folder doesn't exist, create it.
+
+### Set up the EC2 environment:
+
+1. On the command line, navigate to the `.ssh` folder and navigate to the EC2 console in the browser.
+2. From the EC2 dashboard, select Running Instances. The instance we just created should be running.
+3. Look at the Network tab and copy down the public IPv4 address.
+4. Select the Connect button at the upper left section of the page.
+5. On the command line in the `~/.ssh` directory, run the following:
+```
+chmod 400 aws-thought.pem
+ssh -i "aws-thought.pem" ubuntu@ec2-[INSERT IPv4 ADDRESS HERE].us-east-2.compute.amazonaws.com
+```
+6. If the commands are successful you will be prompted to confirm connection. Respond with `yes` and then you should see a message similar to the following:
+![Ubuntu success message](./assets//images/900-ubuntu-connect.png)
+
+### Install Application Environment Dependencies
+
+1. After receiving the success message in the previous section, run `sudo su -` to gain root access control.
+2. Run `apt update` to update the environment.
+3. Run `apt install awscli` to install AWS-CLI.
+4. Run `mkdir ~/.ssh; cd ~/.ssh;` to create the `.ssh` folder and `cd` into it.
+5. Run `aws configure` and enter the access key, private key, and region when prompted. Assign data type to JSON.
+6. Run the following commands to install Node and npm:
+```
+curl -sL https://deb.nodesource.com/setup_10.x | bash -
+apt install -y nodejs
+```
+- Run `node --version` to verify installation.
+
+7. Run `apt install git-all` to install Git.
+- Run `git --version` to verify installation.
+8. Copy the HTTPS URL on the main branch of your GitHub repo for this application.
+9. On the command line, navigate to `/opt/` and clone your repo.
+
+### Install and Configure the NGINX Server
+
+1. Run `apt install nginx`.
+- Test the installation by running `systemctl start nginx`.
+2. Run `nano /etc/nginx/sites-available/default` and replace the configuration with the following:
+```json
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+
+    location /{
+            root /opt/aws-thought/client/build;
+            index index.html;
+            try_files $uri /index.html;
+    }
+    location /api/ {
+            proxy_pass http://localhost:3001;
+    }
+}
+```
+3. Exit and save the config file by pressing `Ctrl+X`.
+4. Run `systemctl restart nginx` to restart the server.
+5. Run `systemctl enable nginx` to automatically launch the server whenever the EC2 instance is started.
+
+### Modify the API Calls
+
+The API calls need to be changed to target the correct production path.
+
+1. Run `nano /opt/aws-thought/client/src/pages/Home.js` and replace the path in the `fetch` call to update the URI with the IPv4 address:
+
+![Example replacement for the fetch call](./assets/images/1100-home-fetch.png)
+
+2. Repeat the previous step in `/opt/aws-thought/client/src/pages/Profile.js` and `/opt/aws-thought/client/src/components/ThoughtForm/index.js`.
+3. Run the following commands to install the app's dependencies:
+```
+cd /opt/aws-thought
+npm install
+```
+
+### Build and Run a Production Version of the Application
+
+1. Navigate to the client directory and run `npm run build`.
+2. Run `npm install pm2 -g` to install the process manager pm2 globally.
+3. Run `pm2 start node_modules/react-scripts/scripts/start.js --name "deepthoughts"`.
+4. Run `pm2 start server.js` from the `aws-thought/server` location to start the server.
+
+Go to the public IPv4 address in the browser to go to your deployed application!
 
 ## Technologies
 
